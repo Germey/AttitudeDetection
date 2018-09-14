@@ -1,6 +1,7 @@
 import tensorflow as tf
 import json
 
+
 def conv2d(x, W):
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
@@ -62,18 +63,30 @@ print(y_conv)
 sess = tf.Session()
 graph = tf.get_default_graph()
 
-
+#
 with open('expression_tensors.json', encoding='utf-8') as f:
     data = json.loads(f.read())
-    
+    print(data.keys())
+#
+#
+# for op in graph.get_operations():
+#     print(type(op))
+#     print(op.name)
+#     tensor = graph.get_tensor_by_name(op.name + ':0')
+#     print(tensor)
+#     tensor.load(data[op.name+':0'], sess)
+#
 
-for op in graph.get_operations():
-    print(type(op))
-    print(op.name)
-    tensor = graph.get_tensor_by_name(op.name + ':0')
-    print(tensor)
-    tensor.load(data[op.name+':0'], sess)
+for v in tf.trainable_variables():
+    print(v)
     
+print('=' * 100)
 
-    
+for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
+    print(v)
+    print(v.name)
+    v.load(data[v.name], sess)
+
+print(sess.run(y_conv, feed_dict={face_x: [[2] * 2304]}))
+
 
