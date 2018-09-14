@@ -30,7 +30,8 @@ name_map = {
 tensors = {}
 for k, v in name_map.items():
     tensors[v] = data[k]
-
+    
+# define new tensors
 print(tensors.keys())
 
 with open('landmark_tensors.json', 'w', encoding='utf-8') as f:
