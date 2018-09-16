@@ -1,15 +1,15 @@
 import cv2
 import tensorflow as tf
 import json
-from config import IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, LANDMARK_TENSORS_PATH
+from config import IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, LANDMARK_TENSORS_PATH, VIDEO
+from pose_estimator import PoseEstimator
+from utils import load_tensors, format_image_rgb
+import numpy as np
 
-image = cv2.imread('test.png')
-print(image)
+# image = cv2.imread('test.png')
+# print(image)
 
-inputs = tf.placeholder(shape=[1, IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, 3], dtype=tf.float32)
-
-
-
+inputs = tf.placeholder(shape=[IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, 3], dtype=tf.float32)
 
 
 def landmark_nn(inputs):
@@ -18,6 +18,8 @@ def landmark_nn(inputs):
     :param inputs: image inputs
     :return: landmark_logits
     """
+    inputs = tf.reshape(inputs, [-1, IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, 3])
+    
     # layer 1
     conv1 = tf.layers.conv2d(
         inputs=inputs,
@@ -155,5 +157,86 @@ sess = tf.Session()
 for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
     print(v)
     v.load(tensors[v.name], sess)
+
+from os.path import join, exists
+from os import makedirs
+
+
+def get_head_pose(image_origin, output_path=None, output_name=None):
+    if not exists(output_path):
+        makedirs(output_path)
     
+    cv2.imwrite(join(output_path, output_name.replace('.png', '.origin.png')), image_origin)
+    # image_name =
+    # image_origin = cv2.imread(image_path)
+    image_origin_height, image_origin_width = image_origin.shape[0:2]
+    # print('Width', image_origin_width, 'Height', image_origin_height)
     
+    image_crop, image_edge = format_image_rgb(image_origin)
+    # cv2.imwrite('surprise_image_crop.png', image_crop)
+    # print('Image Data', image_crop, 'Image Edge', image_edge)
+    
+    image_crop_resize = cv2.resize(image_crop, (128, 128))
+    # cv2.imwrite('surprise_image_crop_resize.png', image_crop_resize)
+    
+    # image_data = cv2.cvtColor(image_data, cv2.COLOR_BGR2RGB)
+    # print('Image', image_crop_resize)
+    
+    predictions = sess.run(landmark_logits, feed_dict={inputs: image_crop_resize})
+    # print(predictions)
+    # print('Len predictions', predictions)
+    
+    marks = np.array(predictions).flatten()
+    marks = np.reshape(marks, (-1, 2))
+    # print(marks)
+    
+    # width =
+    # print('Image edge shape', image_edge)
+    # to do multiply
+    marks *= (image_edge[2] - image_edge[0])
+    marks[:, 0] += image_edge[0]
+    marks[:, 1] += image_edge[1]
+    # print(marks)
+    
+    for mark in marks:
+        cv2.circle(image_origin, tuple(mark), 3, (255, 0, 0))
+    
+    cv2.imwrite(join(output_path, output_name), image_origin)
+    
+    pose_estimator = PoseEstimator(img_size=(image_origin_height, image_origin_width))
+    # pose_estimator
+    pose = pose_estimator.solve_pose_by_68_points(marks)
+    print('Pose', pose)
+    return pose
+
+
+def get_head_poses(video, output_path):
+    video = cv2.VideoCapture(VIDEO)
+    
+    flag = True
+    
+    count = 1
+    
+    poses = []
+    
+    while flag:
+        flag, frame = video.read()
+        print(frame)
+        # cv2.imwrite(join('video_ouput1'))
+        try:
+            pose = get_head_pose(frame, output_path, '%s.png' % count)
+            poses.append(pose)
+        except:
+            pass
+        count += 1
+    
+    result = np.std(np.asarray(poses), axis=0).tolist()
+    with open(join(output_path, 'poses.txt'), 'w', encoding='utf-8') as f:
+        f.write(json.dumps(result))
+    return result
+
+
+# get_head_pose()
+
+result = get_head_poses(VIDEO, 'video_output3')
+print(result)

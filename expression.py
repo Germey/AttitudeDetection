@@ -1,12 +1,20 @@
 import tensorflow as tf
+import cv2
+from config import EXPRESSION_TENSORS_PATH
+from utils import load_tensors, format_image
+from os.path import exists, join
+from os import makedirs
+import json
 
-inputs = tf.placeholder(shape=[None, 2304], dtype=tf.float32)
+
+class ExpressionEstimator():
+    pass
 
 
 def expression_nn(inputs):
     x = tf.reshape(inputs, shape=[-1, 48, 48, 1])
     conv1 = tf.layers.conv2d(
-        inputs=inputs,
+        inputs=x,
         filters=64,
         kernel_size=[5, 5],
         strides=[1, 1],
@@ -45,7 +53,7 @@ def expression_nn(inputs):
         beta=0.75)
     
     dense1 = tf.layers.dense(
-        inputs=tf.reshape(norm2, -1, 12 * 12 * 64),
+        inputs=tf.reshape(norm2, [-1, 12 * 12 * 64]),
         units=384,
         activation=tf.nn.relu,
         name='expression_dense1'
@@ -66,13 +74,56 @@ def expression_nn(inputs):
     return logits
 
 
-for v in tf.trainable_variables():
-    print(v)
+def build_graph():
+    inputs = tf.placeholder(shape=[48, 48], dtype=tf.float32)
+    
+    logits = expression_nn(inputs)
+    probs = tf.nn.softmax(logits)
+    
+    for v in tf.trainable_variables():
+        print(v)
+    
+    tensors = load_tensors(EXPRESSION_TENSORS_PATH)
+    print(tensors.keys())
+    
+    sess = tf.Session()
+    for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
+        print(v)
+        v.load(tensors[v.name], sess)
+    
+    return sess, [probs, logits, inputs]
 
-tensors = load_tensors(LANDMARK_TENSORS_PATH)
-print(tensors.keys())
 
-sess = tf.Session()
-for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
-    print(v)
-    v.load(tensors[v.name], sess)
+# print('logits', sess.run(logits))
+# result = sess.run()
+
+
+# ret, frame = video_captor.read()
+# frame = cv2.imread('surprise.png')
+
+
+def get_expression_result(image, output_path=None, output_name=None):
+    if not exists(output_path):
+        makedirs(output_path)
+    
+    detected_face, face_edge = format_image(image)
+    print('Face', detected_face, 'Edge', face_edge)
+    if face_edge is not None:
+        [x, y, w, h] = face_edge
+        cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
+    
+    if detected_face is not None:
+        cv2.imwrite(join(output_path, output_name + '.expression.png'), detected_face)
+        p, l = sess.run([probs, logits], feed_dict={inputs: detected_face})
+        print(p, l)
+        with open(join(output_path, output_name + '.emotion.p.txt'), 'w', encoding='utf-8') as f:
+            f.write(json.dumps(p.tolist()))
+        with open(join(output_path, output_name + '.emotion.l.txt'), 'w', encoding='utf-8') as f:
+            f.write(json.dumps(l.tolist()))
+
+
+if __name__ == '__main__':
+    image = cv2.imread('test.png')
+    output_path = 'test'
+    output_name = 'test'
+    get_expression_result(image, output_path, output_name)
