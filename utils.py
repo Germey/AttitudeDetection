@@ -2,6 +2,13 @@ import cv2
 import json
 
 from config import CASC_PATH
+from os.path import exists, join
+from os import makedirs
+
+
+def check_dir(dir):
+    if not exists(dir):
+        makedirs(dir)
 
 
 def load_tensors(path):
