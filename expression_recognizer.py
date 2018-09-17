@@ -75,16 +75,19 @@ class ExpressionRecognizer():
         return logits
     
     def build_graph(self):
-        self.inputs = tf.placeholder(shape=[48, 48], dtype=tf.float32)
-        self.logits = self._expression_nn(self.inputs)
-        self.probs = tf.nn.softmax(self.logits)
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+            self.inputs = tf.placeholder(shape=[48, 48], dtype=tf.float32)
+            self.logits = self._expression_nn(self.inputs)
+            self.probs = tf.nn.softmax(self.logits)
     
     def build_model(self):
         tensors = load_tensors(EXPRESSION_TENSORS_PATH)
-        self.sess = tf.Session()
-        for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
-            print(v)
-            v.load(tensors[v.name], self.sess)
+        with self.graph.as_default():
+            self.sess = tf.Session()
+            for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
+                print(v)
+                v.load(tensors[v.name], self.sess)
     
     def process(self, image, output_path=None, output_name=None):
         

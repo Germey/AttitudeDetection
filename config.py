@@ -15,3 +15,5 @@ EMOTIONS = ['angry', 'disgusted', 'fearful', 'happy', 'sad', 'surprised', 'neutr
 VIDEO = '/private/var/py/ReadHeart/static/datas/1532069647.5589173/1532069647.5589173.mp4'
 
 VIDEO_PATH_TEMPLATE = '/private/var/py/ReadHeart/static/datas/{key}/{key}.mp4'
+
+KEYS_FILE = '20180830.data.sr.score.1581.json'
