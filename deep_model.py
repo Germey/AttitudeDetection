@@ -25,7 +25,9 @@ class Model():
         self.learning_rate = 0.001
         
         self.build_graph()
-        # self.build_model()
+        self.build_model()
+        self.build_optimizer()
+        self.build_tensors()
     
     def _expression_nn(self, inputs):
         x = tf.reshape(inputs, shape=[-1, 48, 48, 1])
@@ -286,27 +288,18 @@ class Model():
         
         print('landmark_state', self.landmark_state)
         
-        # sr_score_pairs_inputs: [batch_size, 2]
-        self.sr_pairs_inputs = tf.placeholder(shape=[None, 2], dtype=tf.float32)
-        self.logger.debug('sr_pairs_inputs %s', self.sr_pairs_inputs)
+        # sr_score_inputs: [batch_size, 2]
+        self.sr_inputs = tf.placeholder(shape=[None, 2], dtype=tf.float32)
+        self.logger.debug('sr_pairs_inputs %s', self.sr_inputs)
         
         self.labels_inputs = tf.placeholder(shape=[None], dtype=tf.int32)
         self.logger.debug('labels inputs %s', self.labels_inputs)
         
-        self.sr_pairs_state = tf.layers.dense(inputs=self.sr_pairs_inputs, units=self.hidden_units,
+        self.sr_pairs_state = tf.layers.dense(inputs=self.sr_inputs, units=self.hidden_units,
                                               activation=tf.nn.relu,
-                                              name='sr_pairs_dense')
+                                              name='sr_dense')
     
     def build_model(self):
-        landmark_tensors = load_tensors(LANDMARK_TENSORS_PATH)
-        expression_tensors = load_tensors(EXPRESSION_TENSORS_PATH)
-        tensors = {**landmark_tensors, **expression_tensors}
-        print(tensors)
-        self.sess = tf.Session()
-        for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
-            print(v)
-            v.load(tensors[v.name], self.sess)
-        
         self.concated_inputs = tf.concat([self.expression_state, self.landmark_state, self.sr_pairs_state], axis=-1)
         
         self.logger.debug('concated_inputs %s', self.concated_inputs)
@@ -339,6 +332,19 @@ class Model():
     
     def build_optimizer(self):
         self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+    
+    def build_tensors(self):
+        
+        landmark_tensors = load_tensors(LANDMARK_TENSORS_PATH)
+        expression_tensors = load_tensors(EXPRESSION_TENSORS_PATH)
+        tensors = {**landmark_tensors, **expression_tensors}
+        # print(tensors)
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+        for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
+            # print(v)
+            if v.name in tensors.keys():
+                v.load(tensors[v.name], self.sess)
     
     def build_matrix(self, batch):
         lengths = []
@@ -376,8 +382,9 @@ class Model():
         landmark_inputs_batch = []
         expression_inputs_batch_length = []
         landmark_inputs_batch_length = []
-        for video in zip(videos):
+        for video in videos:
             # print(video, sr, label)
+            print('VP', VIDEOS_PATH, video)
             video_path = join(VIDEOS_PATH, video)
             
             # video_path = self.get_video_path(key)
@@ -428,7 +435,7 @@ class Model():
             else:
                 d = self.max_frame - len(landmark_faces)
                 for i in range(d):
-                    landmark_faces.append(np.zeros(shape=[240, 240, 3]))
+                    landmark_faces.append(np.zeros(shape=[128, 128, 3]))
             
             print('EXPRESSION', np.asarray(expression_faces).shape)
             
@@ -457,13 +464,15 @@ class Model():
                                srs=self.x_data_srs[start_index:end_index],
                                labels=self.y_data[start_index:end_index]
                                )
-            
+            print('Training..............')
             acc, loss, _ = self.sess.run([self.accuracy, self.loss, self.train_op], feed_dict={
                 self.expression_inputs: self.expression_inputs_batch,
                 self.landmark_inputs: self.landmark_inputs_batch,
                 self.expression_inputs_legnth: self.expression_inputs_batch_length,
                 self.landmark_inputs_length: self.landmark_inputs_batch_length,
                 # self.y_data
+                self.sr_inputs: self.srs_inputs_batch,
+                self.labels_inputs: self.labels_inputs_batch,
                 self.keep_rate: 0.7,
                 
             })

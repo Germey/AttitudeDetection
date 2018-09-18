@@ -72,7 +72,7 @@ def format_image_rgb(image):
     image = image[face_edge[1]:(face_edge[1] + face_edge[2]), face_edge[0]:(face_edge[0] + face_edge[3])]
     # Resize image to network size
     try:
-        image = cv2.resize(image, (240, 240), interpolation=cv2.INTER_CUBIC)
+        image = cv2.resize(image, (128, 128), interpolation=cv2.INTER_CUBIC)
     except Exception:
         print("[+} Problem during resize")
         return None, None
