@@ -237,10 +237,10 @@ class Model():
         self.keep_rate = tf.placeholder(shape=[], dtype=tf.float32)
         # expression graph
         self.expression_inputs = tf.placeholder(
-            shape=[self.batch_size, self.max_frame, IMAGE_FOR_EXPRESSION_WIDTH, IMAGE_FOR_EXPRESSION_HEIGHT],
+            shape=[None, self.max_frame, IMAGE_FOR_EXPRESSION_WIDTH, IMAGE_FOR_EXPRESSION_HEIGHT],
             dtype=tf.float32)
         self.expression_inputs_legnth = tf.placeholder(
-            shape=[self.batch_size], dtype=tf.float32)
+            shape=[None], dtype=tf.float32)
         self.expression_logits = self._expression_nn(self.expression_inputs)
         print('Expression logits', self.expression_logits)
         self.expression_logits_reshape = tf.reshape(self.expression_logits, shape=[-1, self.max_frame, 7])
@@ -254,10 +254,10 @@ class Model():
         
         # landmark graph
         self.landmark_inputs = tf.placeholder(
-            shape=[self.batch_size, self.max_frame, IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, 3],
+            shape=[None, self.max_frame, IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, 3],
             dtype=tf.float32)
         self.landmark_inputs_length = tf.placeholder(
-            shape=[self.batch_size], dtype=tf.float32)
+            shape=[None], dtype=tf.float32)
         
         self.landmark_logits = self._landmark_nn(self.landmark_inputs)
         print('Landmark logits', self.landmark_logits)
@@ -384,7 +384,7 @@ class Model():
         landmark_inputs_batch_length = []
         for video in videos:
             # print(video, sr, label)
-            print('VP', VIDEOS_PATH, video)
+            # print('VP', VIDEOS_PATH, video)
             video_path = join(VIDEOS_PATH, video)
             
             # video_path = self.get_video_path(key)
@@ -408,14 +408,14 @@ class Model():
                 # print('Expression', expression_face, expression_edge)
                 # print('TYPE', type(expression_face))
                 if not expression_face is None and expression_face.any():
-                    print('SHAPE', np.asarray(expression_face).shape)
+                    # print('SHAPE', np.asarray(expression_face).shape)
                     expression_faces.append(expression_face)
                 
                 landmark_face, landmark_edge = format_landmark_image(frame)
                 # print('Landmark', landmark_face, landmark_edge)
-                print('Type', type(landmark_face))
+                # print('Type', type(landmark_face))
                 if not landmark_face is None and landmark_face.any():
-                    print('Shape', np.asarray(landmark_face).shape)
+                    # print('Shape', np.asarray(landmark_face).shape)
                     landmark_faces.append(landmark_face)
                 # poses.append(pose)
                 # if landmark_
@@ -437,7 +437,7 @@ class Model():
                 for i in range(d):
                     landmark_faces.append(np.zeros(shape=[128, 128, 3]))
             
-            print('EXPRESSION', np.asarray(expression_faces).shape)
+            # print('EXPRESSION', np.asarray(expression_faces).shape)
             
             expression_inputs_batch.append(expression_faces)
             landmark_inputs_batch.append(landmark_faces)
@@ -474,7 +474,6 @@ class Model():
                 self.sr_inputs: self.srs_inputs_batch,
                 self.labels_inputs: self.labels_inputs_batch,
                 self.keep_rate: 0.7,
-                
             })
             
             print('acc', acc, 'loss', loss)
