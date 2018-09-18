@@ -1,9 +1,12 @@
+import json
 import tensorflow as tf
 from config import IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, IMAGE_FOR_EXPRESSION_HEIGHT, \
-    IMAGE_FOR_EXPRESSION_WIDTH, LANDMARK_TENSORS_PATH, EXPRESSION_TENSORS_PATH
+    IMAGE_FOR_EXPRESSION_WIDTH, LANDMARK_TENSORS_PATH, EXPRESSION_TENSORS_PATH, MAP_JSON_FILE, VIDEOS_PATH
 from utils import load_tensors
 import logging
 import numpy as np
+from os import listdir
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger(__name__)
@@ -15,7 +18,7 @@ class Model():
     def __init__(self):
         self.logger = logger
         self.learning_rate = 0.001
-
+        
         self.build_graph()
         # self.build_model()
     
@@ -274,17 +277,17 @@ class Model():
         print('Expression outputs', self.expression_state)
         
         print('landmark_state', self.landmark_state)
-
+        
         # sr_score_pairs_inputs: [batch_size, 2]
         self.sr_pairs_inputs = tf.placeholder(shape=[None, 2], dtype=tf.float32)
         self.logger.debug('sr_pairs_inputs %s', self.sr_pairs_inputs)
-
+        
         self.labels_inputs = tf.placeholder(shape=[None], dtype=tf.int32)
         self.logger.debug('labels inputs %s', self.labels_inputs)
         
         self.sr_pairs_state = tf.layers.dense(inputs=self.sr_pairs_inputs, units=self.hidden_units,
-                                                    activation=tf.nn.relu,
-                                                    name='sr_pairs_dense')
+                                              activation=tf.nn.relu,
+                                              name='sr_pairs_dense')
     
     def build_model(self):
         landmark_tensors = load_tensors(LANDMARK_TENSORS_PATH)
@@ -295,40 +298,40 @@ class Model():
         for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
             print(v)
             v.load(tensors[v.name], self.sess)
-
+        
         self.concated_inputs = tf.concat([self.expression_state, self.landmark_state, self.sr_pairs_state], axis=-1)
-
+        
         self.logger.debug('concated_inputs %s', self.concated_inputs)
-
+        
         self.inputs_dense = tf.layers.dense(self.concated_inputs, units=self.hidden_units, name='first_dense',
                                             activation=tf.nn.relu, )
-
+        
         self.logger.debug('inputs_dense %s', self.inputs_dense)
-
+        
         self.logists = tf.layers.dense(self.inputs_dense, units=2, name='second_dense')
         self.logger.debug('logists %s', self.logists)
-
+        
         self.logists_softmax = tf.nn.softmax(self.logists)
         self.logger.debug('logists_softmax %s', self.logists_softmax)
-
+        
         self.predict = tf.argmax(self.logists_softmax, axis=-1)
         self.logger.debug('predict %s', self.predict)
-
+        
         self.accuracy = tf.reduce_mean(
             tf.cast(tf.equal(self.predict, tf.cast(self.labels_inputs, tf.int64)), tf.float32))
         self.logger.debug('accuracy %s', self.accuracy)
-
+        
         self.loss = tf.reduce_mean(
             tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logists, labels=self.labels_inputs))
         self.logger.debug('loss %s', self.loss)
-
+        
         tf.summary.scalar('loss', self.loss)
         tf.summary.scalar('accuracy', self.accuracy)
         self.merged_summary = tf.summary.merge_all()
-
+    
     def build_optimizer(self):
         self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
-
+    
     def build_matrix(self, batch):
         lengths = []
         pad = [0] * len(batch[0][0])
@@ -342,7 +345,72 @@ class Model():
             for _ in range(d):
                 item.append(pad)
         return np.asarray(batch), np.asarray(lengths)
+    
+    def prepare_data(self):
+        
+        map_json = json.loads(open(MAP_JSON_FILE, encoding='utf-8').read())
+        self.total_size = len(map_json)
+        
+        # path = './data/attitudes/videos'
+        files = list(listdir(VIDEOS_PATH))
+        self.x_data_videos = files
+        print(self.x_data_videos)
+        self.x_data_srs = list(map(lambda x: map_json[x.replace('.mp4', '')]['sr'], self.x_data_videos))
+        print(self.x_data_srs)
+        
+        self.y_data = list(map(lambda x: map_json[x.replace('.mp4', '')]['label'], self.x_data_videos))
+        print(self.y_data)
+        
+        print(self.x_data_srs, self.y_data)
+    
+    def prepare_batch(self, videos, srs, labels):
+        for video, sr, label in zip(videos, srs, labels):
+            print(video, sr, label)
+            video_path = join(VIDEOS_PATH, video)
+    
+    def prepare_train_data(self):
+        steps = int(self.total_size / self.batch_size) + 1
+        for step in range(steps):
+            start_index = step * self.batch_size
+            end_index = (step + 1) * self.batch_size
+            train_batch = self.prepare_batch(videos=self.x_data_videos[start_index:end_index],
+                                             srs=self.x_data_srs[start_index:end_index],
+                                             labels=self.y_data[start_index:end_index]
+                                             )
+            print(train_batch)
+            
+            
+            
+    
+    # def split(self):
+    
+    # for file in files:
+    
+    # for file in files:
+    #     print(file)
+    #
+    # video_path = self.get_video_path()
+    # video = cv2.VideoCapture(video_path)
+    # video = cv2.VideoCapture(VIDEO)
+    
+    # flag = True
+    # count = 1
+    # poses = []
+    # while flag:
+    #     flag, frame = video.read()
+    #     print(frame)
+    #     if not flag:
+    #         break
+    #     try:
+    #         # cv2.imwrite(join('video_ouput1'))
+    #         self.er.process(deepcopy(frame), join(self.output_path, key, str(count)), 'frame')
+    #         pose = self.pr.process(deepcopy(frame), join(self.output_path, key, str(count)), 'frame')
+    #         poses.append(pose)
+    #     except:
+    #         pass
+    #     count += 1
 
 
 if __name__ == '__main__':
     m = Model()
+    m.prepare_data()
