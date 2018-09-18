@@ -63,7 +63,7 @@ def format_image_rgb(image):
     if not len(faces) > 0:
         return None, None
     max_are_face = faces[0]
-    print('Max Face', faces[0])
+    # print('Max Face', faces[0])
     for face in faces:
         if face[2] * face[3] > max_are_face[2] * max_are_face[3]:
             max_are_face = face

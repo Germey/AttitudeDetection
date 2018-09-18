@@ -1,3 +1,8 @@
+import cv2
+from copy import deepcopy
+
+from os.path import join
+from utils import format_image as format_expression_image, format_image_rgb as format_landmark_image
 import json
 import tensorflow as tf
 from config import IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, IMAGE_FOR_EXPRESSION_HEIGHT, \
@@ -221,10 +226,13 @@ class Model():
         return cell
     
     def build_graph(self):
-        self.batch_size = 12
+        self.batch_size = 5
         self.max_frame = 100
         self.hidden_units = 200
-        self.keep_rate = 0.7
+        
+        # self.labels_inputs = tf.placeholder(shape=[self.batch_size], dtype=tf.float32)
+        
+        self.keep_rate = tf.placeholder(shape=[], dtype=tf.float32)
         # expression graph
         self.expression_inputs = tf.placeholder(
             shape=[self.batch_size, self.max_frame, IMAGE_FOR_EXPRESSION_WIDTH, IMAGE_FOR_EXPRESSION_HEIGHT],
@@ -364,23 +372,103 @@ class Model():
         print(self.x_data_srs, self.y_data)
     
     def prepare_batch(self, videos, srs, labels):
-        for video, sr, label in zip(videos, srs, labels):
-            print(video, sr, label)
+        expression_inputs_batch = []
+        landmark_inputs_batch = []
+        expression_inputs_batch_length = []
+        landmark_inputs_batch_length = []
+        for video in zip(videos):
+            # print(video, sr, label)
             video_path = join(VIDEOS_PATH, video)
+            
+            # video_path = self.get_video_path(key)
+            video = cv2.VideoCapture(video_path)
+            # video = cv2.VideoCapture(VIDEO)
+            expression_faces = []
+            landmark_faces = []
+            flag = True
+            
+            while flag:
+                flag, frame = video.read()
+                # print(frame)
+                if not flag:
+                    break
+                # cv2.imwrite(join('video_ouput1'))
+                # self.er.process(deepcopy(frame), join(self.output_path, key, str(count)), 'frame')
+                # pose = sel
+                # f.pr.process(deepcopy(frame), join(self.output_path, key, str(count)), 'frame')
+                
+                expression_face, expression_edge = format_expression_image(frame)
+                # print('Expression', expression_face, expression_edge)
+                # print('TYPE', type(expression_face))
+                if not expression_face is None and expression_face.any():
+                    print('SHAPE', np.asarray(expression_face).shape)
+                    expression_faces.append(expression_face)
+                
+                landmark_face, landmark_edge = format_landmark_image(frame)
+                # print('Landmark', landmark_face, landmark_edge)
+                print('Type', type(landmark_face))
+                if not landmark_face is None and landmark_face.any():
+                    print('Shape', np.asarray(landmark_face).shape)
+                    landmark_faces.append(landmark_face)
+                # poses.append(pose)
+                # if landmark_
+            expression_inputs_batch_length.append(
+                self.max_frame if len(expression_faces) > self.max_frame else len(expression_faces))
+            landmark_inputs_batch_length.append(
+                self.max_frame if len(landmark_faces) > self.max_frame else len(landmark_faces))
+            if len(expression_faces) > self.max_frame:
+                expression_faces = expression_faces[:self.max_frame]
+            else:
+                d = self.max_frame - len(expression_faces)
+                for i in range(d):
+                    expression_faces.append(np.zeros(shape=[48, 48]))
+            
+            if len(landmark_faces) > self.max_frame:
+                landmark_faces = landmark_faces[:self.max_frame]
+            else:
+                d = self.max_frame - len(landmark_faces)
+                for i in range(d):
+                    landmark_faces.append(np.zeros(shape=[240, 240, 3]))
+            
+            print('EXPRESSION', np.asarray(expression_faces).shape)
+            
+            expression_inputs_batch.append(expression_faces)
+            landmark_inputs_batch.append(landmark_faces)
+            
+            # break
+        print('NP', np.asarray(expression_inputs_batch).shape)
+        print('NP', np.asarray(landmark_inputs_batch).shape)
+        print(expression_inputs_batch_length)
+        print(landmark_inputs_batch_length)
+        
+        self.expression_inputs_batch = expression_inputs_batch
+        self.landmark_inputs_batch = landmark_inputs_batch
+        self.expression_inputs_batch_length = expression_inputs_batch_length
+        self.landmark_inputs_batch_length = landmark_inputs_batch_length
+        self.labels_inputs_batch = labels
+        self.srs_inputs_batch = srs
     
     def prepare_train_data(self):
         steps = int(self.total_size / self.batch_size) + 1
         for step in range(steps):
             start_index = step * self.batch_size
             end_index = (step + 1) * self.batch_size
-            train_batch = self.prepare_batch(videos=self.x_data_videos[start_index:end_index],
-                                             srs=self.x_data_srs[start_index:end_index],
-                                             labels=self.y_data[start_index:end_index]
-                                             )
-            print(train_batch)
+            self.prepare_batch(videos=self.x_data_videos[start_index:end_index],
+                               srs=self.x_data_srs[start_index:end_index],
+                               labels=self.y_data[start_index:end_index]
+                               )
             
+            acc, loss, _ = self.sess.run([self.accuracy, self.loss, self.train_op], feed_dict={
+                self.expression_inputs: self.expression_inputs_batch,
+                self.landmark_inputs: self.landmark_inputs_batch,
+                self.expression_inputs_legnth: self.expression_inputs_batch_length,
+                self.landmark_inputs_length: self.landmark_inputs_batch_length,
+                # self.y_data
+                self.keep_rate: 0.7,
+                
+            })
             
-            
+            print('acc', acc, 'loss', loss)
     
     # def split(self):
     
@@ -414,3 +502,4 @@ class Model():
 if __name__ == '__main__':
     m = Model()
     m.prepare_data()
+    m.prepare_train_data()
