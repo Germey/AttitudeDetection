@@ -1,7 +1,7 @@
 import cv2
 from copy import deepcopy
 
-from os.path import join
+from os.path import join, exists
 from utils import format_image as format_expression_image, format_image_rgb as format_landmark_image
 import json
 import tensorflow as tf
@@ -405,13 +405,13 @@ class Model():
         self.total_size = len(map_json)
         
         # path = './data/attitudes/videos'
-        files = list(listdir(VIDEOS_PATH))
+        files = map_json.keys()
         self.x_data_videos = files
         print(self.x_data_videos)
-        self.x_data_srs = list(map(lambda x: map_json[x.replace('.mp4', '')]['sr'], self.x_data_videos))
+        self.x_data_srs = list(map(lambda x: map_json[x]['sr'], self.x_data_videos))
         print(self.x_data_srs)
         
-        self.y_data = list(map(lambda x: map_json[x.replace('.mp4', '')]['label'], self.x_data_videos))
+        self.y_data = list(map(lambda x: map_json[x]['label'], self.x_data_videos))
         print(self.y_data)
         
         print(self.x_data_srs, self.y_data)
@@ -426,7 +426,8 @@ class Model():
             # print(video, sr, label)
             # print('VP', VIDEOS_PATH, video)
             video_path = join(VIDEOS_PATH, video)
-            
+            if not exists(video_path):
+                continue
             # video_path = self.get_video_path(key)
             video = cv2.VideoCapture(video_path)
             # video = cv2.VideoCapture(VIDEO)
