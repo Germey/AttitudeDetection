@@ -20,6 +20,6 @@ VIDEO_PATH_TEMPLATE = '/private/var/py/ReadHeart/static/datas/{key}/{key}.mp4'
 
 KEYS_FILE = '20180830.data.sr.score.1581.json'
 
-MAP_JSON_FILE = '/private/var/py/AttitudeDetection/data/attitudes/map.json'
+MAP_JSON_FILE = './data/attitudes/map.json'
 
 VIDEOS_PATH = './data/attitudes/videos'
