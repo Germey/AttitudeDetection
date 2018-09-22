@@ -405,7 +405,8 @@ class Model():
         self.total_size = len(map_json)
         
         # path = './data/attitudes/videos'
-        files = map_json.keys()
+        files = list(map_json.keys())
+        print(files)
         self.x_data_videos = files
         print(self.x_data_videos)
         self.x_data_srs = list(map(lambda x: map_json[x]['sr'], self.x_data_videos))
@@ -425,7 +426,7 @@ class Model():
         for video in videos:
             # print(video, sr, label)
             # print('VP', VIDEOS_PATH, video)
-            video_path = join(VIDEOS_PATH, video)
+            video_path = join(VIDEOS_PATH, video + '.mp4')
             if not exists(video_path):
                 continue
             # video_path = self.get_video_path(key)
