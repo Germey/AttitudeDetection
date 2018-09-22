@@ -519,8 +519,8 @@ class Model():
                                labels=self.y_data[start_index:end_index]
                                )
             print('Training..............')
-            acc, loss, _, landmarks = self.sess.run(
-                [self.accuracy, self.loss, self.train_op, self.landmark_logits_reshape], feed_dict={
+            acc, loss, _, landmarks, dif = self.sess.run(
+                [self.accuracy, self.loss, self.train_op, self.landmark_logits_reshape, self.landmark_dif], feed_dict={
                     self.expression_inputs: self.expression_inputs_batch,
                     self.landmark_inputs: self.landmark_inputs_batch,
                     self.expression_inputs_legnth: self.expression_inputs_batch_length,
@@ -534,6 +534,7 @@ class Model():
             
             print('acc', acc, 'loss', loss)
             print('Landmarks', landmarks)
+            print('dif', dif)
     
     # def split(self):
     
