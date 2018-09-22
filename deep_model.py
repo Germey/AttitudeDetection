@@ -239,6 +239,7 @@ class Model():
         self.expression_inputs = tf.placeholder(
             shape=[None, self.max_frame, IMAGE_FOR_EXPRESSION_WIDTH, IMAGE_FOR_EXPRESSION_HEIGHT],
             dtype=tf.float32)
+        
         self.expression_inputs_legnth = tf.placeholder(
             shape=[None], dtype=tf.float32)
         self.expression_logits = self._expression_nn(self.expression_inputs)
@@ -256,6 +257,12 @@ class Model():
         self.landmark_inputs = tf.placeholder(
             shape=[None, self.max_frame, IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, 3],
             dtype=tf.float32)
+        
+        self.landmark_edges_inputs = tf.placeholder(
+            shape=[None, self.max_frame, 4],
+            dtype=tf.float32
+        )
+        
         self.landmark_inputs_length = tf.placeholder(
             shape=[None], dtype=tf.float32)
         
@@ -264,6 +271,38 @@ class Model():
         
         self.landmark_logits_reshape = tf.reshape(self.landmark_logits, shape=[-1, self.max_frame, 136])
         print('landmark_logits_reshape', self.landmark_logits_reshape)
+        
+        self.landmark_logits_resize = tf.multiply(self.landmark_logits_reshape,
+                                                  tf.reshape(
+                                                      self.landmark_edges_inputs[:, :, 2] - self.landmark_edges_inputs[
+                                                                                            :, :,
+                                                                                            0],
+                                                      shape=[-1, self.max_frame, 1]))
+        print('landmark_logits_resize %s', self.landmark_logits_resize)
+        
+        temp_x = tf.expand_dims(self.landmark_edges_inputs[:, :, 0], 1)
+        temp_y = tf.expand_dims(self.landmark_edges_inputs[:, :, 1], 1)
+        edges = tf.tile(tf.expand_dims(tf.transpose(tf.concat([temp_x, temp_y], axis=1), [0, 2, 1]), 2), [1, 1, 68, 1])
+        print('edges', edges)
+        
+        self.landmark_logits_reshape = tf.reshape(self.landmark_logits_resize, [-1, self.max_frame, 68, 2]) + edges
+        
+        # self.landmark_logits_resize_reshape = tf.reshape(self.landmark_logits_resize, shape=[-1, self.max_frame, 68, 2])
+        
+        # print('self.landmark_edges_inputs[:, :, 0]',
+        #       tf.tile(tf.reshape(self.landmark_edges_inputs[:, :, 0], [-1, self.max_frame, 1]), [1, 1, 68]),
+        #       self.landmark_logits_resize_reshape[:, :, :, 0]
+        #       )
+        
+        # self.landmark_logits_resize_reshape = tf.tile(
+        #     tf.reshape(self.landmark_edges_inputs[:, :, 0], [-1, self.max_frame, 1]),
+        #     [1, 1, 68]) + self.landmark_logits_resize_reshape
+        #
+        #
+        #
+        # self.landmark_logits_resize_reshape = tf.tile(
+        #     tf.reshape(self.landmark_edges_inputs[:, :, 1], [-1, self.max_frame, 1]),
+        #     [1, 1, 68]) + self.landmark_logits_resize_reshape[:, :, :, 1]
         
         self.landmark_dif = self.landmark_logits_reshape[:, 1:] - self.landmark_logits_reshape[:, :-1]
         print('Landmark dif', self.landmark_dif)
@@ -380,6 +419,7 @@ class Model():
     def prepare_batch(self, videos, srs, labels):
         expression_inputs_batch = []
         landmark_inputs_batch = []
+        landmark_edges_batch = []
         expression_inputs_batch_length = []
         landmark_inputs_batch_length = []
         for video in videos:
@@ -392,6 +432,7 @@ class Model():
             # video = cv2.VideoCapture(VIDEO)
             expression_faces = []
             landmark_faces = []
+            landmark_edges = []
             flag = True
             
             while flag:
@@ -417,6 +458,8 @@ class Model():
                 if not landmark_face is None and landmark_face.any():
                     # print('Shape', np.asarray(landmark_face).shape)
                     landmark_faces.append(landmark_face)
+                    landmark_edges.append(landmark_edge)
+                
                 # poses.append(pose)
                 # if landmark_
             expression_inputs_batch_length.append(
@@ -437,19 +480,30 @@ class Model():
                 for i in range(d):
                     landmark_faces.append(np.zeros(shape=[128, 128, 3]))
             
+            if len(landmark_edges) > self.max_frame:
+                landmark_edges = landmark_edges[:self.max_frame]
+            else:
+                d = self.max_frame - len(landmark_edges)
+                for i in range(d):
+                    landmark_edges.append(np.zeros(shape=[4]))
+            
             # print('EXPRESSION', np.asarray(expression_faces).shape)
             
             expression_inputs_batch.append(expression_faces)
             landmark_inputs_batch.append(landmark_faces)
+            landmark_edges_batch.append(landmark_edges)
             
             # break
         print('NP', np.asarray(expression_inputs_batch).shape)
         print('NP', np.asarray(landmark_inputs_batch).shape)
+        print('NP', np.asarray(landmark_edges_batch).shape)
         print(expression_inputs_batch_length)
         print(landmark_inputs_batch_length)
+        # print(landmark_inputs_batch_length)
         
         self.expression_inputs_batch = expression_inputs_batch
         self.landmark_inputs_batch = landmark_inputs_batch
+        self.landmark_edges_inputs_batch = landmark_edges_batch
         self.expression_inputs_batch_length = expression_inputs_batch_length
         self.landmark_inputs_batch_length = landmark_inputs_batch_length
         self.labels_inputs_batch = labels
@@ -465,18 +519,21 @@ class Model():
                                labels=self.y_data[start_index:end_index]
                                )
             print('Training..............')
-            acc, loss, _ = self.sess.run([self.accuracy, self.loss, self.train_op], feed_dict={
-                self.expression_inputs: self.expression_inputs_batch,
-                self.landmark_inputs: self.landmark_inputs_batch,
-                self.expression_inputs_legnth: self.expression_inputs_batch_length,
-                self.landmark_inputs_length: self.landmark_inputs_batch_length,
-                # self.y_data
-                self.sr_inputs: self.srs_inputs_batch,
-                self.labels_inputs: self.labels_inputs_batch,
-                self.keep_rate: 0.7,
-            })
+            acc, loss, _, landmarks = self.sess.run(
+                [self.accuracy, self.loss, self.train_op, self.landmark_logits_reshape], feed_dict={
+                    self.expression_inputs: self.expression_inputs_batch,
+                    self.landmark_inputs: self.landmark_inputs_batch,
+                    self.expression_inputs_legnth: self.expression_inputs_batch_length,
+                    self.landmark_inputs_length: self.landmark_inputs_batch_length,
+                    # self.y_data
+                    self.landmark_edges_inputs: self.landmark_edges_inputs_batch,
+                    self.sr_inputs: self.srs_inputs_batch,
+                    self.labels_inputs: self.labels_inputs_batch,
+                    self.keep_rate: 0.7,
+                })
             
             print('acc', acc, 'loss', loss)
+            print('Landmarks', landmarks)
     
     # def split(self):
     
