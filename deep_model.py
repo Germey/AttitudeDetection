@@ -10,6 +10,7 @@ from config import IMAGE_FOR_LANDMARK_WIDTH, IMAGE_FOR_LANDMARK_HEIGHT, IMAGE_FO
 from utils import load_tensors
 import logging
 import numpy as np
+from sklearn.model_selection import train_test_split
 from os import listdir
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -228,7 +229,7 @@ class Model():
         return cell
     
     def build_graph(self):
-        self.batch_size = 30
+        self.batch_size = 5
         self.max_frame = 100
         self.hidden_units = 200
         
@@ -408,14 +409,29 @@ class Model():
         files = list(map_json.keys())
         print(files)
         self.x_data_videos = files
-        print(self.x_data_videos)
+        # print(self.x_data_videos)
         self.x_data_srs = list(map(lambda x: map_json[x]['sr'], self.x_data_videos))
-        print(self.x_data_srs)
+        # print(self.x_data_srs)
         
         self.y_data = list(map(lambda x: map_json[x]['label'], self.x_data_videos))
-        print(self.y_data)
+        # print(self.y_data)
         
-        print(self.x_data_srs, self.y_data)
+        # print(self.x_data_srs, self.y_data)
+        
+        # self.x_data_srs_train =
+        self.x_data_videos_train, self.x_data_videos_test, self.y_data_train, self.y_data_test = train_test_split(
+            self.x_data_videos,
+            self.y_data,
+            random_state=10)
+        
+        self.x_data_srs_train, self.x_data_srs_test, self.y_data_train, self.y_data_test = train_test_split(
+            self.x_data_srs,
+            self.y_data,
+            random_state=10
+        )
+        
+        self.total_size_train = len(self.y_data_train)
+        self.total_size_test = len(self.y_data_test)
     
     def prepare_batch(self, videos, srs, labels):
         expression_inputs_batch = []
@@ -512,21 +528,24 @@ class Model():
         self.srs_inputs_batch = srs
     
     def prepare_train_data(self):
-        steps = int(self.total_size / self.batch_size) + 1
+        steps = int(self.total_size_train / self.batch_size) + 1
         epochs = 100
+
+        saver = tf.train.Saver()
         
         for epoch in range(epochs):
             for step in range(steps):
                 start_index = step * self.batch_size
                 end_index = (step + 1) * self.batch_size
-                self.prepare_batch(videos=self.x_data_videos[start_index:end_index],
-                                   srs=self.x_data_srs[start_index:end_index],
-                                   labels=self.y_data[start_index:end_index]
+                self.prepare_batch(videos=self.x_data_videos_train[start_index:end_index],
+                                   srs=self.x_data_srs_train[start_index:end_index],
+                                   labels=self.y_data_train[start_index:end_index]
                                    )
                 if self.landmark_inputs_batch:
                     print('Training..............')
                     acc, loss, _, landmarks, dif = self.sess.run(
-                        [self.accuracy, self.loss, self.train_op, self.landmark_logits_reshape, self.landmark_dif], feed_dict={
+                        [self.accuracy, self.loss, self.train_op, self.landmark_logits_reshape, self.landmark_dif],
+                        feed_dict={
                             self.expression_inputs: self.expression_inputs_batch,
                             self.landmark_inputs: self.landmark_inputs_batch,
                             self.expression_inputs_legnth: self.expression_inputs_batch_length,
@@ -541,7 +560,39 @@ class Model():
                     print('acc', acc, 'loss', loss)
                     print('Landmarks', landmarks)
                     print('dif', dif)
-        
+                    if epoch % 5 == 0:
+                        saver.save(sess=self.sess, save_path="deep/model-ep%s" % epoch)
+
+            print('Valid....')
+            steps = int(self.total_size_test / self.batch_size) + 1
+            for step in range(steps):
+                print('STEP', step)
+                start_index = step * self.batch_size
+                end_index = (step + 1) * self.batch_size
+                self.prepare_batch(videos=self.x_data_videos_test[start_index:end_index],
+                                   srs=self.x_data_srs_test[start_index:end_index],
+                                   labels=self.y_data_test[start_index:end_index]
+                                   )
+                if self.landmark_inputs_batch:
+                    print('VALIDDDDD..............')
+                    acc, loss, _, landmarks, dif = self.sess.run(
+                        [self.accuracy, self.loss, self.train_op, self.landmark_logits_reshape, self.landmark_dif],
+                        feed_dict={
+                            self.expression_inputs: self.expression_inputs_batch,
+                            self.landmark_inputs: self.landmark_inputs_batch,
+                            self.expression_inputs_legnth: self.expression_inputs_batch_length,
+                            self.landmark_inputs_length: self.landmark_inputs_batch_length,
+                            # self.y_data
+                            self.landmark_edges_inputs: self.landmark_edges_inputs_batch,
+                            self.sr_inputs: self.srs_inputs_batch,
+                            self.labels_inputs: self.labels_inputs_batch,
+                            self.keep_rate: 1,
+                        })
+                    
+                    print('acc', acc, 'loss', loss)
+                    print('Landmarks', landmarks)
+                    print('dif', dif)
+    
     # def split(self):
     
     # for file in files:
