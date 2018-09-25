@@ -228,7 +228,7 @@ class Model():
         return cell
     
     def build_graph(self):
-        self.batch_size = 5
+        self.batch_size = 30
         self.max_frame = 100
         self.hidden_units = 200
         
@@ -513,31 +513,35 @@ class Model():
     
     def prepare_train_data(self):
         steps = int(self.total_size / self.batch_size) + 1
-        for step in range(steps):
-            start_index = step * self.batch_size
-            end_index = (step + 1) * self.batch_size
-            self.prepare_batch(videos=self.x_data_videos[start_index:end_index],
-                               srs=self.x_data_srs[start_index:end_index],
-                               labels=self.y_data[start_index:end_index]
-                               )
-            print('Training..............')
-            acc, loss, _, landmarks, dif = self.sess.run(
-                [self.accuracy, self.loss, self.train_op, self.landmark_logits_reshape, self.landmark_dif], feed_dict={
-                    self.expression_inputs: self.expression_inputs_batch,
-                    self.landmark_inputs: self.landmark_inputs_batch,
-                    self.expression_inputs_legnth: self.expression_inputs_batch_length,
-                    self.landmark_inputs_length: self.landmark_inputs_batch_length,
-                    # self.y_data
-                    self.landmark_edges_inputs: self.landmark_edges_inputs_batch,
-                    self.sr_inputs: self.srs_inputs_batch,
-                    self.labels_inputs: self.labels_inputs_batch,
-                    self.keep_rate: 0.7,
-                })
-            
-            print('acc', acc, 'loss', loss)
-            print('Landmarks', landmarks)
-            print('dif', dif)
-    
+        epochs = 100
+        
+        for epoch in range(epochs):
+            for step in range(steps):
+                start_index = step * self.batch_size
+                end_index = (step + 1) * self.batch_size
+                self.prepare_batch(videos=self.x_data_videos[start_index:end_index],
+                                   srs=self.x_data_srs[start_index:end_index],
+                                   labels=self.y_data[start_index:end_index]
+                                   )
+                if self.landmark_inputs_batch:
+                    print('Training..............')
+                    acc, loss, _, landmarks, dif = self.sess.run(
+                        [self.accuracy, self.loss, self.train_op, self.landmark_logits_reshape, self.landmark_dif], feed_dict={
+                            self.expression_inputs: self.expression_inputs_batch,
+                            self.landmark_inputs: self.landmark_inputs_batch,
+                            self.expression_inputs_legnth: self.expression_inputs_batch_length,
+                            self.landmark_inputs_length: self.landmark_inputs_batch_length,
+                            # self.y_data
+                            self.landmark_edges_inputs: self.landmark_edges_inputs_batch,
+                            self.sr_inputs: self.srs_inputs_batch,
+                            self.labels_inputs: self.labels_inputs_batch,
+                            self.keep_rate: 0.7,
+                        })
+                    
+                    print('acc', acc, 'loss', loss)
+                    print('Landmarks', landmarks)
+                    print('dif', dif)
+        
     # def split(self):
     
     # for file in files:
